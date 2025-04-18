@@ -114,12 +114,6 @@ const ListaTurnos = ({ fecha }: ListaTurnosProps) => {
             <p className="text-sm text-muted-foreground mb-4">
               No hay turnos para este día. Puedes crear uno nuevo usando el botón de arriba.
             </p>
-            <Button 
-              onClick={() => navigate("/crear-turno", { state: { fecha } })}
-              className="cita-btn-primary"
-            >
-              Crear Turno
-            </Button>
           </div>
         ) : (
           <motion.div 

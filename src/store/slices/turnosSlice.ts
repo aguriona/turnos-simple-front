@@ -8,6 +8,7 @@ interface TurnosState {
   turnosDelMes: Turno[];
   turnosPorDia: Record<string, Turno[]>;
   turnoSeleccionado: Turno | null;
+  cacheTurnosPorMes: Record<string, { turnos: Turno[], timestamp: number }>;
   loading: {
     todos: boolean;
     turnosDelMes: boolean;
@@ -28,6 +29,7 @@ const initialState: TurnosState = {
   turnosDelMes: [],
   turnosPorDia: {},
   turnoSeleccionado: null,
+  cacheTurnosPorMes: {},
   loading: {
     todos: false,
     turnosDelMes: false,
@@ -45,10 +47,27 @@ const initialState: TurnosState = {
 // Thunks - Funciones asíncronas para comunicación con la API
 export const fetchTurnosDelMes = createAsyncThunk(
   'turnos/fetchTurnosDelMes',
-  async ({ mes, año }: { mes: number, año: number }, { rejectWithValue }) => {
+  async ({ mes, año }: { mes: number, año: number }, { rejectWithValue, getState }) => {
     try {
+      // Verificar si tenemos los datos en caché y si son recientes (menos de 5 minutos)
+      const state = getState() as { turnos: TurnosState };
+      const cacheKey = `${mes}-${año}`;
+      const cachedData = state.turnos.cacheTurnosPorMes[cacheKey];
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+      // Si hay datos en caché y son recientes, devolverlos
+      if (cachedData && (now - cachedData.timestamp < CACHE_DURATION)) {
+        return cachedData.turnos;
+      }
+      
+      // Si no hay caché o ha expirado, hacer la petición
       const turnos = await obtenerTurnos(mes, año);
-      return turnos;
+      // Validar que turnos sea un array
+      if (!Array.isArray(turnos)) {
+        throw new Error('Respuesta inválida de la API: turnos no es un array');
+      }
+      return { turnos, mes, año };
     } catch (error) {
       return rejectWithValue('Error al cargar los turnos del mes');
     }
@@ -127,7 +146,21 @@ const turnosSlice = createSlice({
         state.error.turnosDelMes = null;
       })
       .addCase(fetchTurnosDelMes.fulfilled, (state, action) => {
-        state.turnosDelMes = action.payload;
+        // Si recibimos solo los turnos (desde la caché)
+        if (Array.isArray(action.payload)) {
+          state.turnosDelMes = action.payload;
+        } 
+        // Si recibimos objeto con turnos, mes y año (petición fresca)
+        else {
+          const { turnos, mes, año } = action.payload;
+          state.turnosDelMes = turnos;
+          // Guardar en caché
+          const cacheKey = `${mes}-${año}`;
+          state.cacheTurnosPorMes[cacheKey] = {
+            turnos,
+            timestamp: Date.now()
+          };
+        }
         state.loading.turnosDelMes = false;
       })
       .addCase(fetchTurnosDelMes.rejected, (state, action) => {
