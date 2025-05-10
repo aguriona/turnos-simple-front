@@ -8,13 +8,15 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Bell, Mail, MessageSquare, Send } from "lucide-react";
+import { Loader2, Bell, Mail, Send } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
-import { ConfiguracionNotificaciones, saveConfiguracionNotificaciones, updateNotificaciones } from "@/store/slices/configuracionSlice";
+import { ConfiguracionNotificaciones } from "@/services/apiService";
+import { saveConfiguracionNotificaciones, updateNotificaciones, fetchConfiguracionNotificaciones } from "@/store/slices/configuracionSlice";
 
 const NotificacionesConfig = () => {
   const dispatch = useAppDispatch();
   const { notificaciones, guardando, error } = useAppSelector(state => state.configuracion);
+  const loadingNotificaciones = useAppSelector(state => state.configuracion.loading.notificaciones);
   const { toast } = useToast();
   
   const tiemposRecordatorio = [
@@ -26,6 +28,11 @@ const NotificacionesConfig = () => {
     { value: "48", label: "48 horas antes (2 días)" },
     { value: "72", label: "72 horas antes (3 días)" },
   ];
+  
+  // Cargar la configuración de notificaciones
+  useEffect(() => {
+    dispatch(fetchConfiguracionNotificaciones());
+  }, [dispatch]);
   
   // Mostrar errores si ocurren
   useEffect(() => {
@@ -113,6 +120,7 @@ const NotificacionesConfig = () => {
                 disabled={!notificaciones.recordatorioHabilitado}
                 checked={notificaciones.recordatorioEmail}
                 onCheckedChange={(checked) => handleChange('recordatorioEmail', checked === true)}
+                className="h-6 w-6"
               />
               <Label 
                 htmlFor="email-recordatorio" 
@@ -122,29 +130,13 @@ const NotificacionesConfig = () => {
                 Email
               </Label>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="sms-recordatorio"
-                disabled={!notificaciones.recordatorioHabilitado}
-                checked={notificaciones.recordatorioSMS}
-                onCheckedChange={(checked) => handleChange('recordatorioSMS', checked === true)}
-              />
-              <Label 
-                htmlFor="sms-recordatorio" 
-                className="flex items-center cursor-pointer text-sm font-normal"
-              >
-                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-                SMS
-              </Label>
-            </div>
-            
             <div className="flex items-center space-x-2">
               <Checkbox 
                 id="whatsapp-recordatorio"
                 disabled={!notificaciones.recordatorioHabilitado}
                 checked={notificaciones.recordatorioWhatsapp}
                 onCheckedChange={(checked) => handleChange('recordatorioWhatsapp', checked === true)}
+                className="h-6 w-6"
               />
               <Label 
                 htmlFor="whatsapp-recordatorio" 

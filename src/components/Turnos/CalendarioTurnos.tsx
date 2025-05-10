@@ -41,6 +41,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { fetchTurnosDelMes } from "@/store/slices/turnosSlice";
+import { fetchConfiguracionHorario } from "@/store/slices/configuracionSlice";
 
 // Tipos
 interface CalendarioTurnosProps {
@@ -172,6 +173,8 @@ const VistaSemanal = ({
   turnosPorHora: Record<string, Record<number, number>>,
   onSelectDia: (dia: Date) => void
 }) => {
+  // Obtener configuración de horarios desde Redux
+  const { diasDisponibles } = useAppSelector(state => state.configuracion.horario);
   // Obtenemos las 3 horas más utilizadas
   const horasMasUtilizadas = useMemo(() => {
     // Obtener las horas con turnos para los días de la semana actual
@@ -211,6 +214,7 @@ const VistaSemanal = ({
           const horasDia = turnosPorHora[fechaFormateada] || {};
           const esHoy = isSameDay(dia, new Date());
           const esFechaSeleccionada = isSameDay(dia, fecha);
+          const esDiaDisponible = diasDisponibles.includes(dia.getDay());
 
           // Verificar si hay turnos en las horas más comunes para este día
           const turnosPorHoraDestacada = horasMasUtilizadas.map(hora => ({
@@ -228,7 +232,8 @@ const VistaSemanal = ({
                     ? "bg-primary text-primary-foreground"
                     : esHoy
                       ? "bg-muted"
-                      : "hover:bg-muted"
+                      : "hover:bg-muted",
+                  !esDiaDisponible && "opacity-50"
                 )}
               >
                 <span className="text-sm font-medium">{format(dia, 'd')}</span>
@@ -334,9 +339,15 @@ const CalendarioTurnos = ({
   // Redux hooks
   const dispatch = useAppDispatch();
   const turnosState = useAppSelector(state => state.turnos);
+  const configuracionState = useAppSelector(state => state.configuracion);
   const turnosDelMes = turnosState.turnosDelMes;
   const loading = turnosState.loading.turnosDelMes;
+  const loadingConfig = configuracionState.loading.horario;
   const error = turnosState.error.turnosDelMes;
+  const configError = configuracionState.error;
+  
+  // Obtener la configuración de horarios
+  const { diasDisponibles, horaInicio, horaFin } = configuracionState.horario;
 
   // Calculamos el conteo de turnos por día y agrupamos por horas
   const { turnosPorDia, turnosPorHora } = useMemo(() => {
@@ -364,6 +375,11 @@ const CalendarioTurnos = ({
     return { turnosPorDia: porDia, turnosPorHora: porHora };
   }, [turnosDelMes]);
 
+  // Cargar la configuración de horarios al iniciar
+  useEffect(() => {
+    dispatch(fetchConfiguracionHorario());
+  }, [dispatch]);
+  
   // Calcular los días de la semana
   useEffect(() => {
     if (vistaCalendario === "semana") {
@@ -457,36 +473,55 @@ const CalendarioTurnos = ({
         className="h-full"
       >
         <Card className="flex flex-col">
-          <CardHeader className="justify-between items-center p-4 pb-2 ">
-          <Select
-              value={getMonth(fecha).toString()}
-              onValueChange={handleCambioMes}
-              disabled={loading}
-            >
-              <SelectTrigger className="h-7 w-[110px] text-xs border-input">
-                <CalendarViewIcon className="h-3.5 w-3.5 mr-1" />
-                <SelectValue placeholder="Seleccionar mes" />
-              </SelectTrigger>
-              <SelectContent>
-                {meses.map(mes => (
-                  <SelectItem
-                    key={mes.value}
-                    value={mes.value}
-                    className="text-xs"
-                  >
-                    {mes.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <NavegacionFechas
-              vistaCalendario={vistaCalendario}
-              fecha={fecha}
-              diasSemana={diasSemana}
-              onAnterior={handleAnterior}
-              onSiguiente={handleSiguiente}
-              loading={loading}
-            />
+          <CardHeader className="p-4 pb-2">
+            <div className="flex justify-between items-center w-full">
+              <div className="flex space-x-2 items-center">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-xs flex items-center bg-primary/10 text-primary rounded-md px-2 py-1">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{horaInicio} - {horaFin}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">
+                      Horario configurado
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                
+                <Select
+                  value={getMonth(fecha).toString()}
+                  onValueChange={handleCambioMes}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="h-7 w-[110px] text-xs border-input">
+                    <CalendarViewIcon className="h-3.5 w-3.5 mr-1" />
+                    <SelectValue placeholder="Seleccionar mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meses.map(mes => (
+                      <SelectItem 
+                        key={mes.value}
+                        value={mes.value}
+                        className="text-xs"
+                      >
+                        {mes.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <NavegacionFechas
+                vistaCalendario={vistaCalendario}
+                fecha={fecha}
+                diasSemana={diasSemana}
+                onAnterior={handleAnterior}
+                onSiguiente={handleSiguiente}
+                loading={loading}
+              />
+            </div>
           </CardHeader>
 
           <CardContent className="p-4 pt-2 flex-1">
@@ -541,14 +576,20 @@ const CalendarioTurnos = ({
 
                           const cantidadTurnos = turnosPorDia[format(day.date, 'yyyy-MM-dd')] || 0;
                           const isCurrentMonth = isSameMonth(day.date, fecha);
+                          const esDiaDisponible = diasDisponibles.includes(day.date.getDay());
+                          
+                          // Estilo especial para días no disponibles según la configuración
+                          const customClass = !esDiaDisponible ? "opacity-40" : "";
 
                           return (
-                            <DiaMes
-                              day={day.date}
-                              isSelected={selected}
-                              cantidadTurnos={cantidadTurnos}
-                              isCurrentMonth={isCurrentMonth}
-                            />
+                            <div className={customClass}>
+                              <DiaMes
+                                day={day.date}
+                                isSelected={selected}
+                                cantidadTurnos={cantidadTurnos}
+                                isCurrentMonth={isCurrentMonth}
+                              />
+                            </div>
                           );
                         },
                       }}

@@ -1,18 +1,20 @@
 
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Calendar, Clock, Edit, Mail, Phone, Trash2, User } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Edit, Mail, Phone, Trash2, User, AlertCircle, Settings } from "lucide-react";
 import { EstadoTurno } from "@/services/apiService";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { fetchTurnoDetalle, actualizarEstadoTurno } from "@/store/slices/turnosSlice";
+import { fetchConfiguracionHorario } from "@/store/slices/configuracionSlice";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,11 +40,19 @@ const DetalleTurno = () => {
     error: state.turnos.error.turnoSeleccionado
   }));
   
+  // Obtener la configuración desde Redux
+  const configuracion = useAppSelector(state => state.configuracion);
+  const { diasDisponibles, horaInicio, horaFin } = configuracion.horario;
+  const loadingConfig = configuracion.loading.horario;
+  
   useEffect(() => {
     if (!id) return;
     
     // Cargar el detalle del turno usando Redux
     dispatch(fetchTurnoDetalle(id));
+    
+    // Cargar la configuración de horarios
+    dispatch(fetchConfiguracionHorario());
   }, [dispatch, id]);
   
   // Mostrar error si algo sale mal
@@ -147,6 +157,54 @@ const DetalleTurno = () => {
                   <span>Horario: {turno.horaInicio} - {turno.horaFin}</span>
                 </div>
                 
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(new Date(turno.fecha), "EEEE d 'de' MMMM, yyyy", { locale: es })}</span>
+                    
+                    {/* Indicador si el día es no hábil según la configuración */}
+                    {diasDisponibles.length > 0 && !diasDisponibles.includes(new Date(turno.fecha).getDay()) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="ml-1 bg-yellow-100 text-yellow-800 text-xs">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              No hábil
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="text-xs">
+                            Día fuera del horario de atención configurado
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span>{turno.horaInicio} - {turno.horaFin}</span>
+                    
+                    {/* Indicador si el horario está fuera del rango configurado */}
+                    {horaInicio && horaFin && (
+                      turno.horaInicio < horaInicio || turno.horaFin > horaFin ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="ml-1 bg-yellow-100 text-yellow-800 text-xs">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Fuera de horario
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="text-xs">
+                              Este turno está fuera del horario de atención configurado: {horaInicio} - {horaFin}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null
+                    )}
+                  </div>
+                </div>
+                
                 {turno.servicio && (
                   <div className="flex items-center gap-2 text-gray-700">
                     <Calendar className="h-4 w-4 text-gray-400" />
@@ -219,7 +277,24 @@ const DetalleTurno = () => {
           
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-medium mb-3">Cambiar estado</h3>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-medium">Cambiar estado</h3>
+                
+                {/* Información de configuración */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center text-xs text-muted-foreground bg-muted p-1 rounded">
+                        <Settings className="h-3 w-3 mr-1" />
+                        <span>Horario: {horaInicio} - {horaFin}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Horario configurado actual
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <Button 
                   variant="outline" 

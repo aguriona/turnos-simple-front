@@ -13,7 +13,8 @@ import { fetchConfiguracionHorario, saveConfiguracionHorario } from "@/store/sli
 
 const HorarioConfig = () => {
   const dispatch = useAppDispatch();
-  const { horario, loading, guardando, error } = useAppSelector(state => state.configuracion);
+  const { horario, guardando, error } = useAppSelector(state => state.configuracion);
+  const loadingHorario = useAppSelector(state => state.configuracion.loading.horario);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -51,7 +52,7 @@ const HorarioConfig = () => {
     });
   };
   
-  if (loading) {
+  if (loadingHorario) {
     return (
       <Card>
         <CardContent className="p-6 flex justify-center items-center">
@@ -79,6 +80,7 @@ const HorarioConfig = () => {
                   id={`dia-${indice}`}
                   checked={horario.diasDisponibles.includes(indice)}
                   onCheckedChange={(checked) => handleDiaChange(indice, checked === true)}
+                  className="h-6 w-6"
                 />
                 <Label htmlFor={`dia-${indice}`} className="cursor-pointer">{nombre}</Label>
               </div>

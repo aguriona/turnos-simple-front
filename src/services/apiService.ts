@@ -29,6 +29,14 @@ export interface ConfiguracionHorario {
   descansoEntreTurnos: number; // minutos
 }
 
+export interface ConfiguracionNotificaciones {
+  recordatorioHabilitado: boolean;
+  tiempoRecordatorio: number; // en horas antes del turno
+  recordatorioEmail: boolean;
+  recordatorioWhatsapp: boolean;
+  mensajePersonalizado: string;
+}
+
 export interface EstadisticasPeriodo {
   total: number;
   confirmados: number;
@@ -79,13 +87,21 @@ const generarTurnosPorDia = (fecha: Date, cantidad: number): Turno[] => {
   );
 };
 
-// Datos de ejemplo para la configuración de horarios
+// Datos de ejemplo para la configuración
 const configuracionHorarioEjemplo: ConfiguracionHorario = {
   diasDisponibles: [1, 2, 3, 4, 5], // Lunes a viernes
   horaInicio: '09:00',
   horaFin: '18:00',
   duracionTurnoPredeterminada: 30,
   descansoEntreTurnos: 10
+};
+
+const configuracionNotificacionesEjemplo: ConfiguracionNotificaciones = {
+  recordatorioHabilitado: true,
+  tiempoRecordatorio: 24, // 24 horas por defecto
+  recordatorioEmail: true,
+  recordatorioWhatsapp: true,
+  mensajePersonalizado: 'Le recordamos su turno para mañana. Por favor, confirme su asistencia.'
 };
 
 // API mock para obtener turnos
@@ -124,12 +140,113 @@ export const obtenerTurnoDetalle = async (id: string): Promise<Turno | null> => 
   return turnos.find(t => t.id === id) || null;
 };
 
+// API para crear nuevos turnos
+export const crearTurno = async (turno: Omit<Turno, 'id'> & { id?: string }): Promise<Turno> => {
+  // Simulamos delay de red
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // En producción, aquí iría una llamada fetch real
+  // const response = await fetch('/api/turnos', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(turno)
+  // });
+  // return await response.json();
+  
+  // Validaciones básicas
+  if (!turno.cliente || !turno.cliente.nombre) {
+    throw new Error('El nombre del cliente es obligatorio');
+  }
+  
+  if (!turno.fecha || !turno.horaInicio || !turno.horaFin) {
+    throw new Error('La fecha y hora del turno son obligatorias');
+  }
+  
+  // Generamos un ID si no se proporciona
+  const nuevoTurno: Turno = {
+    ...turno,
+    id: turno.id || `turno-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    estado: turno.estado || 'pendiente'
+  } as Turno;
+  
+  // Recuperamos turnos almacenados en localStorage o creamos array vacío
+  const turnosGuardados = JSON.parse(localStorage.getItem('turnos') || '[]');
+  
+  // Añadimos el nuevo turno
+  const nuevosTurnos = [...turnosGuardados, nuevoTurno];
+  
+  // Guardamos en localStorage
+  localStorage.setItem('turnos', JSON.stringify(nuevosTurnos));
+  
+  return nuevoTurno;
+};
+
+// API para configuración de horarios
 export const obtenerConfiguracionHorario = async (): Promise<ConfiguracionHorario> => {
+  // Simulamos delay de red
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // En producción, aquí iría una llamada fetch real
+  // const response = await fetch('/api/configuracion/horario');
+  // return await response.json();
+  
   return configuracionHorarioEjemplo;
 };
 
 export const guardarConfiguracionHorario = async (config: ConfiguracionHorario): Promise<ConfiguracionHorario> => {
-  return config; // Simula guardar y devolver la configuración
+  // Simulamos delay de red y validación en servidor
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // En producción, aquí iría una llamada fetch real
+  // const response = await fetch('/api/configuracion/horario', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(config)
+  // });
+  // return await response.json();
+  
+  // Validamos que la configuración tenga valores coherentes
+  if (config.duracionTurnoPredeterminada < 5) {
+    throw new Error('La duración mínima de un turno debe ser de 5 minutos');
+  }
+  
+  if (config.horaInicio >= config.horaFin) {
+    throw new Error('La hora de inicio debe ser anterior a la hora de fin');
+  }
+  
+  // Guardamos en el localStorage para persistencia
+  localStorage.setItem('configuracionHorario', JSON.stringify(config));
+  
+  return config;
+};
+
+// API para configuración de notificaciones
+export const obtenerConfiguracionNotificaciones = async (): Promise<ConfiguracionNotificaciones> => {
+  // Simulamos delay de red
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // Intentamos recuperar del localStorage
+  const savedConfig = localStorage.getItem('configuracionNotificaciones');
+  if (savedConfig) {
+    return JSON.parse(savedConfig);
+  }
+  
+  return configuracionNotificacionesEjemplo;
+};
+
+export const guardarConfiguracionNotificaciones = async (config: ConfiguracionNotificaciones): Promise<ConfiguracionNotificaciones> => {
+  // Simulamos delay de red
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Validaciones básicas
+  if (config.tiempoRecordatorio < 1) {
+    throw new Error('El tiempo de recordatorio debe ser al menos 1 hora');
+  }
+  
+  // Guardamos en localStorage para persistencia
+  localStorage.setItem('configuracionNotificaciones', JSON.stringify(config));
+  
+  return config;
 };
 
 export const obtenerEstadisticasMes = async (mes: number, año: number): Promise<EstadisticasPeriodo> => {

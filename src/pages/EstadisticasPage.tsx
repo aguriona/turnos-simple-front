@@ -60,8 +60,6 @@ const EstadisticasPage = () => {
             </CardContent>
           </Card>
         </div>
-        
-        <GraficoMensual />
       </motion.div>
     </Layout>
   );

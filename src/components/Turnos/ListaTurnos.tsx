@@ -1,18 +1,20 @@
 
-import { useEffect } from "react";
-import { format } from "date-fns";
+import { useEffect, useState } from "react";
+import { format, parse, compareAsc, addMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Check, Clock, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, Plus, X, Info } from "lucide-react";
 import { Turno, EstadoTurno } from "@/services/apiService";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { fetchTurnosPorFecha } from "@/store/slices/turnosSlice";
+import { fetchConfiguracionHorario } from "@/store/slices/configuracionSlice";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ListaTurnosProps {
   fecha: Date;
@@ -27,11 +29,40 @@ const ListaTurnos = ({ fecha }: ListaTurnosProps) => {
     turnos: state.turnos.turnosPorDia[fechaStr] || [],
     loading: state.turnos.loading.turnosPorDia
   }));
+  
+  // Obtener configuración desde Redux
+  const configuracion = useAppSelector(state => state.configuracion);
+  const { diasDisponibles, horaInicio, horaFin, duracionTurnoPredeterminada } = configuracion.horario;
+  const loadingConfig = configuracion.loading.horario;
+  
+  // Verificar si el día seleccionado está disponible según la configuración
+  const diaSemana = fecha.getDay();
+  const esDiaDisponible = diasDisponibles.includes(diaSemana);
+  
+  // Si está fuera del horario laboral, mostrar un mensaje
+  const [estaEnHorarioLaboral, setEstaEnHorarioLaboral] = useState(true);
+  
+  // Calcular los horarios disponibles
 
+  useEffect(() => {
+    // Cargar configuración de horarios
+    dispatch(fetchConfiguracionHorario());
+  }, [dispatch]);
+  
   useEffect(() => {
     // Cargar turnos del día seleccionado usando Redux
     dispatch(fetchTurnosPorFecha(fecha));
   }, [dispatch, fecha]);
+  
+  // Verificar si la fecha está dentro del horario laboral
+  useEffect(() => {
+    if (horaInicio && horaFin) {
+      // Convertir horaInicio y horaFin a objetos Date para la fecha seleccionada
+      const inicioLaboral = parse(horaInicio, 'HH:mm', fecha);
+      const finLaboral = parse(horaFin, 'HH:mm', fecha);
+      setEstaEnHorarioLaboral(true); // Por defecto asumimos que está en horario laboral
+    }
+  }, [fecha, horaInicio, horaFin]);
   
   const getEstadoColor = (estado: EstadoTurno) => {
     switch (estado) {
@@ -71,14 +102,43 @@ const ListaTurnos = ({ fecha }: ListaTurnosProps) => {
   return (
     <Card className="overflow-hidden cita-card">
       <CardHeader className="p-4 flex flex-row items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">
-          Turnos del {format(fecha, "EEEE d 'de' MMMM", { locale: es })}
-        </h2>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">
+            Turnos del {format(fecha, "EEEE d 'de' MMMM", { locale: es })}
+          </h2>
+          
+          {loadingConfig ? (
+            <Skeleton className="h-4 w-24 mt-1" />
+          ) : (
+            <div className="flex items-center mt-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3 mr-1" />
+                      <span>{horaInicio} - {horaFin}</span>
+                      {!esDiaDisponible && (
+                        <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 text-xs py-0 px-1">
+                          Día no hábil
+                        </Badge>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Horario configurado
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+        </div>
+        
         <Button 
           variant="default" 
           size="sm"
           onClick={() => navigate("/crear-turno", { state: { fecha } })}
           className="text-xs md:text-sm flex items-center gap-1"
+          disabled={!esDiaDisponible}
         >
           <Plus className="h-4 w-4" />
           <span>Nuevo Turno</span>
@@ -108,12 +168,27 @@ const ListaTurnos = ({ fecha }: ListaTurnosProps) => {
         ) : turnos.length === 0 ? (
           <div className="p-6 flex flex-col items-center justify-center text-center">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Clock className="h-8 w-8 text-muted-foreground" />
+              {!esDiaDisponible ? (
+                <Info className="h-8 w-8 text-yellow-500" />
+              ) : (
+                <Clock className="h-8 w-8 text-muted-foreground" />
+              )}
             </div>
-            <h3 className="text-lg font-medium mb-1">No hay turnos agendados</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              No hay turnos para este día. Puedes crear uno nuevo usando el botón de arriba.
-            </p>
+            {!esDiaDisponible ? (
+              <>
+                <h3 className="text-lg font-medium mb-1">Día no disponible</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Este día no está configurado como día hábil en la configuración de horarios.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-medium mb-1">No hay turnos agendados</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  No hay turnos para este día. Puedes crear uno nuevo usando el botón de arriba.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <motion.div 
@@ -135,7 +210,7 @@ const ListaTurnos = ({ fecha }: ListaTurnosProps) => {
                   )}
                   onClick={() => navigate(`/turnos/${turno.id}`)}
                 >
-                  <CardContent className="p-4">
+                  <CardContent className="p-4 mt-2">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium text-gray-900">{turno.cliente.nombre}</p>
